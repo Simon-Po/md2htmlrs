@@ -8,6 +8,7 @@ enum ComponentKind {
     Header { level: usize },
     LineBreak,
     LineThrough,
+    CodeBlock
 }
 #[derive(Debug)]
 struct Component {
@@ -59,22 +60,36 @@ fn main() -> std::io::Result<()> {
 
 fn render(components: &Vec<Component>) -> String {
     let mut out: String = String::new();
-
+    let mut index_empty = File::open("src/index_empty.html").unwrap();
+    let mut index_empty_content = String::new();
+    index_empty.read_to_string(&mut index_empty_content).unwrap();
+    let Some((header,footer)) = index_empty_content.split_once("{content}")
+    else { todo!();};
+     
     for comp in components {
         match comp.kind {
             ComponentKind::LineBreak => out.push_str("<br>"),
-            ComponentKind::Paragraph => out.push_str(&format!("<p>{}</p>", &comp.content)),
+            ComponentKind::Paragraph => {
+                        out.push_str(&format!("<p>{}</p>", &comp.content))
+                    },
             ComponentKind::Header { level } => {
-                out.push_str(&format!("<h{}>{}</h{}>", level, &comp.content, level))
-            }
-            ComponentKind::LineThrough => out.push_str("<hr>"),
+                        out.push_str(&format!("<h{}>{}</h{}>", level, &comp.content, level))
+                    }
+            ComponentKind::LineThrough => {
+                out.push_str("<hr>")
+            },
+            ComponentKind::CodeBlock => out.push_str(&format!("<pre><code>{}</code></pre>")),
         };
     }
 
-    return out;
+    format!("{}{}{}",header,out,footer)
 }
 
 fn collect_components(components: &mut Vec<Component>, result: String) {
+    // codeblocks: 
+    // first we need to check if we are in a codeblock, then it will just be added to it 
+    // if we are not we do the normal thing
+    // also dont forget to check for end of document
     let header_re = Regex::new(r"^(#+)\s+(.*)").unwrap();
     let line_re = Regex::new(r"^-{3,}$").unwrap();
     for line in result.lines() {
@@ -83,28 +98,26 @@ fn collect_components(components: &mut Vec<Component>, result: String) {
             let header_content = &caps[2];
             components.push(Component {
                 kind: ComponentKind::Header {
-                    level: *header_level as usize,
+                    level: { *header_level },
                 },
                 content: String::from(header_content),
             });
-        } else if let Some(_) = line_re.captures(line) {
+        } else if line_re.captures(line).is_some() {
             components.push(Component {
                 kind: ComponentKind::LineThrough,
                 content: String::new(),
             })
+        } else if !line.is_empty() {
+            components.push(Component {
+                kind: ComponentKind::Paragraph,
+                content: String::from(line),
+            });
         } else {
-            if !line.is_empty() {
-                components.push(Component {
-                    kind: ComponentKind::Paragraph,
-                    content: String::from(line),
-                });
-            } else {
-                components.push(Component {
-                    kind: ComponentKind::LineBreak,
-                    content: String::from(""),
-                })
-                //out = out + "<br>"
-            }
+            components.push(Component {
+                kind: ComponentKind::LineBreak,
+                content: String::from(""),
+            })
+            //out = out + "<br>"
         }
     }
 }
