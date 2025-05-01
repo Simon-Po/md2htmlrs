@@ -78,7 +78,7 @@ fn render(components: &Vec<Component>) -> String {
             ComponentKind::LineThrough => {
                 out.push_str("<hr>")
             },
-            ComponentKind::CodeBlock => out.push_str(&format!("<pre><code>{}</code></pre>")),
+            ComponentKind::CodeBlock => out.push_str(&format!("<pre><code>{}</code></pre>",&comp.content)),
         };
     }
 
@@ -92,8 +92,27 @@ fn collect_components(components: &mut Vec<Component>, result: String) {
     // also dont forget to check for end of document
     let header_re = Regex::new(r"^(#+)\s+(.*)").unwrap();
     let line_re = Regex::new(r"^-{3,}$").unwrap();
+    let codeblock_re = Regex::new(r"^```").unwrap();
+    
+    let mut is_codeblock = false;
+    let mut codeblock_content = String::new();
+
     for line in result.lines() {
-        if let Some(caps) = header_re.captures(line) {
+        
+        if  codeblock_re.is_match(line) && !is_codeblock {
+           is_codeblock = true;
+        }
+        else if codeblock_re.is_match(line) && is_codeblock {
+                components.push(Component { kind: ComponentKind::CodeBlock, content: codeblock_content.clone() });
+                is_codeblock = false; 
+                codeblock_content.clear();
+             
+        }
+        else if is_codeblock {
+            codeblock_content.push_str(line);
+            codeblock_content.push('\n');
+        }
+        else if let Some(caps) = header_re.captures(line) {
             let header_level = &caps[1].len();
             let header_content = &caps[2];
             components.push(Component {
